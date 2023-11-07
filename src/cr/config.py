@@ -12,7 +12,6 @@ class CodaBenchQueue(BaseModel):
 
 
 class CodaBenchUserRouterKey(str, Enum):
-    id = "id"
     username = "username"
     email = "email"
 
