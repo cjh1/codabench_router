@@ -147,8 +147,12 @@ async def route():
     loop = asyncio.get_event_loop()
 
     source_queue_name = settings.SOURCE_QUEUE_NAME
+    default_target_queue_name = settings.DEFAULT_TARGET_QUEUE_NAME
+    routing_key = settings.CODABENCH_USER_ROUTING_KEY
 
     logger.info(f"SOURCE_QUEUE: {source_queue_name}")
+    logger.info(f"DEFAULT_TARGET_QUEUE_NAME: {default_target_queue_name}")
+    logger.info(f"CODABENCH_USER_ROUTING_KEY: {routing_key}")
 
     source_queue = settings.QUEUES[source_queue_name]
 
