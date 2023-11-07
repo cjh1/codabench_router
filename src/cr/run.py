@@ -156,8 +156,9 @@ async def route():
         str(source_queue.rabbitmq_broker_url), loop=loop
     ) as connection:
         async with await connection.channel() as channel:
-            queue: aio_pika.abc.AbstractQueue = await channel.get_queue(
-                source_queue.rabbitmq_queue
+            queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
+                source_queue.rabbitmq_queue,
+                durable=True
             )
 
             async with queue.iterator() as queue_iter:
