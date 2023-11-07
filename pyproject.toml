@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cr"
+version = "0.0.1"
+authors = [
+  { name="Chris Harris", email="cjh@lbl.gov" },
+]
+description = "Python service to route codabench tasks"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pydantic",
+  "pydantic_settings",
+  "coloredlogs",
+  "aio_pika",
+  "httpx",
+  "tenacity"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+cr = "cr.run:main"
