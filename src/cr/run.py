@@ -152,7 +152,7 @@ async def route():
 
     logger.info(f"SOURCE_QUEUE: {source_queue_name}")
     logger.info(f"DEFAULT_TARGET_QUEUE_NAME: {default_target_queue_name}")
-    logger.info(f"CODABENCH_USER_ROUTING_KEY: {routing_key}")
+    logger.info(f"CODABENCH_USER_ROUTING_KEY: {routing_key.value}")
 
     source_queue = settings.QUEUES[source_queue_name]
 
