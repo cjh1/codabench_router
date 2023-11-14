@@ -124,7 +124,9 @@ async def _route_message(message):
         ) as worker_connection:
             async with await worker_connection.channel() as worker_channel:
                 worker_exchange = await worker_channel.declare_exchange(
-                    target_queue.rabbitmq_exchange, auto_delete=False, durable=True,
+                    target_queue.rabbitmq_exchange,
+                    auto_delete=False,
+                    durable=True,
                 )
                 worker_queue = await worker_channel.declare_queue(
                     target_queue.rabbitmq_queue,
@@ -160,10 +162,8 @@ async def route():
         str(source_queue.rabbitmq_broker_url), loop=loop
     ) as connection:
         async with await connection.channel() as channel:
-            queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
+            queue: aio_pika.abc.AbstractQueue = await channel.get_queue(
                 source_queue.rabbitmq_queue,
-                durable=True,
-                arguments={"x-max-priority": 10}
             )
 
             async with queue.iterator() as queue_iter:
