@@ -8,6 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class CodaBenchQueue(BaseModel):
     name: str
     rabbitmq_queue: Optional[str] = "compute-worker"
+    rabbitmq_exchange: Optional[str] = "compute-worker"
+    rabbitmq_routing_key: Optional[str] = "compute-worker"
     rabbitmq_broker_url: AnyUrl
 
 
