@@ -51,6 +51,7 @@ async def _fetch_submission(submission_id: int) -> Submission:
         headers = {"Authorization": f"Token {token}"}
 
         r = await client.get(f"/api/submissions/{submission_id}/", headers=headers)
+        r.raise_for_status()
 
         return Submission.model_validate(r.json())
 
@@ -69,6 +70,7 @@ async def _fetch_participants():
         r = await client.get(
             f"/api/participants/?competition={competition}", headers=headers
         )
+        r.raise_for_status()
 
         ta = TypeAdapter(List[User])
         participants = ta.validate_python(r.json())
