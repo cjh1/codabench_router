@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 from enum import Enum
+from pathlib import Path
 
 from pydantic import AnyUrl, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     SOURCE_QUEUE_NAME: str
     DEFAULT_TARGET_QUEUE_NAME: str
     ROUTES: Dict[str, str]
+    ROUTING_FILE: Path | None = None
     QUEUES: Dict[str, CodaBenchQueue]
     CODABENCH_URL: AnyUrl
     CODABENCH_API_TOKEN: str

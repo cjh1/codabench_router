@@ -3,6 +3,8 @@ import logging
 import json
 import sys
 from typing import List
+import copy
+from pathlib import Path
 
 import aio_pika
 import aio_pika.abc
@@ -10,6 +12,7 @@ import coloredlogs
 import httpx
 from pydantic import BaseModel, TypeAdapter, ConfigDict
 import tenacity
+from watchfiles import awatch, Change
 
 from cr.config import settings
 
@@ -147,7 +150,49 @@ async def _route_message(message):
                 )
 
 
+def _update_routing(file: Path):
+    logger.info(f"Loading routing file: {file}")
+    with file.open("r") as fp:
+        keys = fp.readlines()
+
+    keys = [k.strip() for k in keys]
+    target = file.stem
+
+    # Clean up old route
+    current = copy.deepcopy(settings.ROUTES)
+
+    for k in list(current.keys()):
+        if current[k] == target:
+            del current[k]
+
+    for k in keys:
+        current[k] = target
+
+    settings.ROUTES = current
+
+    logger.info(f"New routes installed: {settings.ROUTES}")
+
+
+async def _watch_routing_file(file: Path):
+    # watch the routing file for changes
+    async for changes in awatch(file, force_polling=True, poll_delay_ms=1000):
+        logger.info("Routing file modified.")
+        ((change_type, _),) = changes
+        if change_type == Change.modified:
+            _update_routing(file)
+
+
+async def init_routing():
+    # Now look at the routing file
+    if settings.ROUTING_FILE is not None:
+        _update_routing(settings.ROUTING_FILE)
+
+        asyncio.create_task(_watch_routing_file(settings.ROUTING_FILE))
+
+
 async def route():
+    await init_routing()
+
     loop = asyncio.get_event_loop()
 
     source_queue_name = settings.SOURCE_QUEUE_NAME
@@ -167,7 +212,7 @@ async def route():
             queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
                 source_queue.rabbitmq_queue,
                 durable=True,
-                arguments={"x-max-priority": 10}
+                arguments={"x-max-priority": 10},
             )
 
             async with queue.iterator() as queue_iter:
