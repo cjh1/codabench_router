@@ -101,6 +101,7 @@ async def _route_message(message):
         submission = await _fetch_submission(submission_id)
         owner = submission.owner
 
+        logger.info(f"Submission ID: {submission_id}")
         logger.info(f"Submission owner: {owner}")
 
         target_queue = settings.DEFAULT_TARGET_QUEUE_NAME
