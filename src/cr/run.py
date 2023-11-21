@@ -156,7 +156,11 @@ def _update_routing(file: Path):
     with file.open("r") as fp:
         keys = fp.readlines()
 
+    # Remove whitespace
     keys = [k.strip() for k in keys]
+    # Remove empties
+    keys = [k for k in keys if k]
+
     target = file.stem
 
     # Clean up old route
