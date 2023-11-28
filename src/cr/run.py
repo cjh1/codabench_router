@@ -1,4 +1,5 @@
 import asyncio
+from asyncio.exceptions import CancelledError
 import logging
 import json
 import sys
@@ -210,19 +211,28 @@ async def route():
 
     source_queue = settings.QUEUES[source_queue_name]
 
-    async with await aio_pika.connect_robust(
-        str(source_queue.rabbitmq_broker_url), loop=loop
-    ) as connection:
-        async with await connection.channel() as channel:
-            queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
-                source_queue.rabbitmq_queue,
-                durable=True,
-                arguments={"x-max-priority": 10},
-            )
+    while True:
+        try:
+            async with await aio_pika.connect_robust(
+                str(source_queue.rabbitmq_broker_url), loop=loop, heartbeat=120,
+            ) as connection:
+                async with await connection.channel() as channel:
+                    queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
+                        source_queue.rabbitmq_queue,
+                        durable=True,
+                        arguments={"x-max-priority": 10},
+                    )
 
-            async with queue.iterator() as queue_iter:
-                async for message in queue_iter:
-                    await _route_message(message)
+                    async with queue.iterator() as queue_iter:
+                        async for message in queue_iter:
+                            await _route_message(message)
+        except Exception as ex:
+            if isinstance(ex, CancelledError):
+                return
+
+            logger.exception("Exception from routing loop")
+            logger.info("Sleep and then try again")
+            await asyncio.sleep(10)
 
 
 def main():
