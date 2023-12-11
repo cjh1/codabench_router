@@ -16,6 +16,7 @@ import tenacity
 from watchfiles import awatch, Change
 
 from cr.config import settings
+from cr.config import CodaBenchQueue
 
 logger = logging.getLogger("cr")
 logger.setLevel(logging.INFO)
@@ -196,7 +197,70 @@ async def init_routing():
         asyncio.create_task(_watch_routing_file(settings.ROUTING_FILE))
 
 
+async def _broadcast_pidbox_messages(
+    queue: aio_pika.abc.AbstractQueue, exchanges: List[aio_pika.Exchange]
+):
+    async with queue.iterator() as queue_iter:
+        async for message in queue_iter:
+            async with message.process():
+                for e in exchanges:
+                    await e.publish(
+                        message,
+                        "",
+                    )
+
+
+async def route_pidbox(source_queue: CodaBenchQueue):
+    from_broker_url = str(source_queue.rabbitmq_broker_url)
+    pidbox_exchange_name = source_queue.rabbitmq_pidbox_exchange
+    loop = asyncio.get_event_loop()
+
+    while True:
+        # Setup connections and exchanges we need to forward messages to
+        connections = []
+        exchanges = []
+        queues = [settings.QUEUES[v] for v in set(settings.ROUTES.values())]
+        for q in queues:
+            connection = await aio_pika.connect_robust(
+                str(q.rabbitmq_broker_url), loop=loop
+            )
+            connections.append(connection)
+            channel = await connection.channel()
+            exchange = await channel.declare_exchange(
+                pidbox_exchange_name, type="fanout", auto_delete=False
+            )
+            exchanges.append(exchange)
+
+        # Now connect to our source queue
+        try:
+            async with await aio_pika.connect_robust(
+                from_broker_url,
+                loop=loop,
+            ) as connection:
+                async with await connection.channel() as channel:
+                    exchange = await channel.declare_exchange(
+                        pidbox_exchange_name, type="fanout", auto_delete=False
+                    )
+
+                    queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
+                        "pidbox_relay", durable=True, auto_delete=True
+                    )
+                    await queue.bind(exchange)
+                    await _broadcast_pidbox_messages(queue, exchanges)
+        except CancelledError:
+            return
+        except Exception as ex:
+            logger.exception("Exception from routing loop")
+            logger.info("Sleep and then try again")
+            await asyncio.sleep(10)
+        finally:
+            for c in connections:
+                await c.close()
+
+
 async def route():
+    pidbox_task = None
+
     await init_routing()
 
     loop = asyncio.get_event_loop()
@@ -211,28 +275,37 @@ async def route():
 
     source_queue = settings.QUEUES[source_queue_name]
 
+    logger.info("Starting pidbox routing loop")
+    pidbox_task = asyncio.create_task(route_pidbox(source_queue))
+
     while True:
         try:
             async with await aio_pika.connect_robust(
-                str(source_queue.rabbitmq_broker_url), loop=loop, heartbeat=120,
+                str(source_queue.rabbitmq_broker_url),
+                loop=loop,
             ) as connection:
                 async with await connection.channel() as channel:
                     queue: aio_pika.abc.AbstractQueue = await channel.declare_queue(
                         source_queue.rabbitmq_queue,
                         durable=True,
-                        arguments={"x-max-priority": 10},
+                        # arguments={"x-max-priority": 10},
                     )
 
                     async with queue.iterator() as queue_iter:
                         async for message in queue_iter:
                             await _route_message(message)
-        except Exception as ex:
-            if isinstance(ex, CancelledError):
-                return
 
+        except KeyboardInterrupt:
+            return
+        except CancelledError:
+            return
+        except Exception as ex:
             logger.exception("Exception from routing loop")
             logger.info("Sleep and then try again")
             await asyncio.sleep(10)
+        finally:
+            if pidbox_task is not None:
+                pidbox_task.cancel()
 
 
 def main():
